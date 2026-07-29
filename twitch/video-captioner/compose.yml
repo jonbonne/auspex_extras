@@ -1,0 +1,24 @@
+version: '3.9'
+
+services:
+  snes-capture-node:
+    extends:
+      file: base.yml
+      service: video-caption-base
+    # map host video devices into the container
+    devices:
+      - "/dev/video2:/dev/video0"    # first capture card
+    command: ros2 launch video_captioner video_captioner.launch.py frame_rate:=60.0 caption_rate:=120.0
+
+  camera-stream-node:
+    extends:
+      file: base.yml
+      service: video-caption-base
+    # map host video devices into the container
+    devices:
+      - "/dev/video0:/dev/video0"    # first camera
+    command: ros2 launch video_captioner video_captioner.launch.py name:=camera_captioner frame_rate:=10.0 caption_rate:=2.0
+
+  #echo-test:
+  #  image: video-captioner-video_caption_node:latest
+  #  command: ros2 topic echo /video_caption

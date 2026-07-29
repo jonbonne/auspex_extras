@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>video_captioner</name>
+  <version>0.1.0</version>
+  <description>ROS 2 node for real-time video captioning using transformer models</description>
+  <maintainer email="jonbonne@gmail.com">JonBonne</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <depend>rclpy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>cv_bridge</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

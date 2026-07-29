@@ -1,0 +1,257 @@
+#!/usr/bin/env python3
+import sys
+import copy
+import math
+import datetime
+from zoneinfo import ZoneInfo
+
+import pygame
+import rclpy
+from rclpy.duration import Duration
+from rclpy.executors import MultiThreadedExecutor
+from pygame.locals import QUIT, KEYDOWN, K_BACKSPACE, K_RETURN
+from snes_overlay_streamer.snes_overlay_streamer import OverlayNode
+from snes_overlay_streamer.gradient_ticker import GradientTicker
+
+# --- rocking grid parameters ---
+ROWS, COLS    = 3, 3
+GAP           = 10         # pixels between thumbs
+ROCK_FREQ     = 0.1       # Hz: back-and-forth cycles per second
+ROCK_AMP      = 3        # degrees: max tilt each way
+X0, Y0        = 0,  0   # top-left corner where the grid starts
+# ----------------------------------
+GLOW_COLOR=(180, 220, 255)
+GLOW_AMP=20
+GLOW_FREQ=0.5
+
+def blit_rocking_grid(screen, video_surface, origin=(X0, Y0)):
+    if video_surface is None:
+        return
+
+    # 1) make the thumbnail
+    ow, oh = video_surface.get_size()
+    tw, th = ow // 5, oh // 5
+    thumb  = pygame.transform.smoothscale(video_surface, (tw, th))
+
+    x0, y0 = origin
+
+    # 2) time in seconds
+    t = pygame.time.get_ticks() / 1000.0
+
+    idx = 0
+    for row in range(ROWS):
+        for col in range(COLS):
+            # compute the unrotated top-left of this cell
+            x = x0 + col * (tw + GAP)
+            y = y0 + row * (th + GAP)
+
+            # create the rocking angle
+            # optional: give each its own phase offset:
+            phase = (idx / (ROWS * COLS)) * 2 * math.pi
+            angle = ROCK_AMP * math.sin(2 * math.pi * ROCK_FREQ * t + phase)
+
+            # rotate around the thumb’s center
+            rotated = pygame.transform.rotate(thumb, angle)
+            rrect   = rotated.get_rect(topleft=(x, y))
+
+            screen.blit(rotated, rrect)
+            idx += 1
+
+def blit_glow(target_surf, text_surf, pos, glow_radius=4, glow_alpha=40):
+    w, h = text_surf.get_size()
+    # create a glow surface a bit larger
+    glow_surf = pygame.Surface((w + glow_radius*2, h + glow_radius*2), pygame.SRCALPHA)
+    # blit multiple offset copies
+    for dx in range(-glow_radius, glow_radius+1, 2):
+        for dy in range(-glow_radius, glow_radius+1, 2):
+            glow_surf.blit(text_surf, (dx + glow_radius, dy + glow_radius))
+    glow_surf.set_alpha(glow_alpha)
+    # draw the glow
+    target_surf.blit(glow_surf, (pos[0] - glow_radius, pos[1] - glow_radius))
+    # draw the sharp text on top
+    target_surf.blit(text_surf, pos)
+
+
+class TwitchLayout():
+
+    def __init__(self, W, H):
+        '''
+        construct
+        '''
+        self._width, self._height = W, H
+        self._screen = pygame.display.set_mode((self._width, self._height))
+        pygame.display.set_caption('bowsercade!')
+
+        # must be initialized after screen instance is allocated
+        self._node = OverlayNode(use_compression=True)
+        if not self._node.initialize(self._screen):  # screen instance here
+            print("Error: failed to initialize OverlayNode!")
+            sys.exit()
+
+        self._process_executor = MultiThreadedExecutor(num_threads=2)
+        self._process_executor.add_node(self._node)
+
+    def initialize(self):
+        '''
+        configure
+        '''
+
+
+        self._execution_clock = pygame.time.Clock()
+    
+        # ticker strips
+        #ticker_font = pygame.font.Font("/fonts/Press_Start_2P/PressStart2P-Regular.ttf", 24)
+        ticker_font = pygame.font.Font("/fonts/digital-7.ttf", 36)
+        self._ticker = GradientTicker(ticker_font, effects=blit_glow, speed=50)
+
+        # camera feed
+        X_OFFSET = 90
+        Y_OFFSET = 90
+        self._tv_stacks ={
+            'one' : tuple([self._width // 2 + X_OFFSET, self._height // 2 - Y_OFFSET]),
+            #'two' : tuple([self._width // 2 + self._width // 8 + X_OFFSET, self._height // 2 - Y_OFFSET]),
+        }
+
+        # model name
+        PARAM_DISPLAY_X_OFFSET = 100
+        PARAM_DISPLAY_Y_OFFSET = 200
+        self._pd_x = self._width // 2 + PARAM_DISPLAY_X_OFFSET
+        self._pd_y = self._height // 2 - PARAM_DISPLAY_Y_OFFSET
+        self._pd_font = pygame.font.Font("/fonts/VT323/VT323-Regular.ttf", 14)
+
+        self._billboard_entries = self._node.update_billboard(self._pd_x, self._pd_y)
+
+        # clock
+        CLOCK_X_OFFSET = 100
+        CLOCK_Y_OFFSET = 120
+        self._time_zone = ZoneInfo("America/Chicago")
+        self._clock_font = pygame.font.Font("/fonts/digital-7.ttf", 48)
+        now = datetime.datetime.now(self._time_zone).strftime("%A, %B %d, %Y %I:%M:%S %p")
+        self._clock_surf = self._clock_font.render(now, True, GLOW_COLOR)
+        self._clock_x = CLOCK_X_OFFSET
+        self._clock_y = self._height - CLOCK_Y_OFFSET - self._clock_surf.get_height() - 10  # 10px margin
+   
+        print("INITIALIZED")
+        return True
+
+    def teardown(self):
+        '''
+        shutdown
+        '''
+        self._node.destroy_node()
+    
+    def run(self):
+        '''
+        run the layout
+        '''
+        BOTTOM_IDLE_SECONDS = 10.0
+        TOP_IDLE_SECONDS = 45.0
+   
+        print("RUNNING")
+        while True:
+
+            ros_now = self._node.get_clock().now()
+            dt = self._execution_clock.tick(65) / 1000.0  # seconds since last frame
+            self._process_executor.spin_once(timeout_sec=0.005)
+    
+            for e in pygame.event.get():
+                if e.type == QUIT:
+                    raise KeyboardInterrupt()
+    
+            # background animation (earthbound style)
+            #screen.blit(bg.render(), (self._height // 20, self._width // 20))
+            self._node.render_bg(self._screen)
+    
+            # bottom ticker
+            pygame.draw.rect(self._screen, (0,0,0), (0, self._height-120, self._width, 60))
+            elapsed = (ros_now - self._node.last_bottom_ticker_event)
+            if elapsed < Duration(seconds=BOTTOM_IDLE_SECONDS):
+                self._ticker.draw(self._screen, f"[{self._node.bottom_ticker_text}]", y=self._height-110)
+            else:
+                self._ticker.draw(self._screen, "[<.<]   [>.>]   ", y=self._height-110)
+    
+            # top ticker
+            pygame.draw.rect(self._screen, (0,0,0), (0, 60, self._width, 60))
+            elapsed = (ros_now - self._node.last_top_ticker_event)
+            if elapsed < Duration(seconds=TOP_IDLE_SECONDS):
+                self._ticker.draw(self._screen, self._node.top_ticker_text, y=70)
+            else:
+                #self._ticker.draw(self._screen, "[¬º-°]¬   ", y=70)
+                self._ticker.draw(self._screen, "[>O-o]>   <[O-o<]   ", y=70)
+    
+            self._ticker.update(dt)
+    
+            glow_intensity = lambda phi: int(GLOW_AMP * math.sin(2 * math.pi * GLOW_FREQ * dt - phi))
+    
+            # params blit
+            pygame.draw.rect(self._screen, (0,0,0), (self._pd_x, self._pd_y - 25, 300, 100))
+            param_display_surf = self._pd_font.render("!!! B O W S E R C A D E !!!", True, GLOW_COLOR)
+            blit_glow(self._screen, param_display_surf, (100, self._pd_y - 40), glow_radius=(glow_intensity(0)))
+            i = 0
+            for pvalue, ploc in self._billboard_entries:
+                param_display_surf = self._pd_font.render(pvalue, True, GLOW_COLOR)
+                blit_glow(self._screen, param_display_surf, ploc, glow_radius=(glow_intensity(2*math.pi*(i+1))))
+                i += 1
+    
+            # video stream
+            video_surface = self._node.get_raw_surface()
+            if video_surface:
+                # final origin for this frame
+                self._screen.blit(video_surface, (50, 150))
+    
+            # camera stream
+            camera_surface = self._node.get_raw_camera_surface()
+            if camera_surface:
+                # TODO: resize the video_surface to 1/8 it's size and set it up
+                # in a tiktok 2x4 array, with each frame blitted to be rocking
+                # back and forth slightly at a specified frequency.
+                # base origin
+                for k in self._tv_stacks:
+                    #print(f"{k}")
+                    #base_x0, base_y0 = self._width // 7, self._height // 6
+                    base_x0, base_y0 = self._tv_stacks[k]
+    
+                    # final origin for this frame
+                    origin = (base_x0, base_y0)
+                    blit_rocking_grid(self._screen, camera_surface, origin=origin)
+    
+            # Clock
+            # Now draw the digital clock *above* the TV stacks
+            now = datetime.datetime.now(self._time_zone).strftime("%A, %B %d, %Y %I:%M:%S %p")
+            self._clock_surf = self._clock_font.render(now, True, GLOW_COLOR)
+    
+            #time_surf = pygame.Surface(self._clock_surf.get_size(), pygame.SRCALPHA)
+            #time_surf.set_alpha(200)
+            #time_surf.blit(self._clock_surf, (0,0))
+    
+            pygame.draw.rect(self._screen, (0,0,0), (self._clock_x, self._clock_y, 800, 40))
+            blit_glow(self._screen, self._clock_surf, (self._clock_x + 10, self._clock_y), glow_radius=glow_intensity(0))
+    
+            pygame.display.flip()
+  
+
+def main():
+    '''
+    entrypoint
+    '''
+
+    # ROS init
+    rclpy.init()
+
+    # Pygame init
+    pygame.init()
+
+    try:
+        tl = TwitchLayout(960, 720)
+        if tl.initialize():
+            tl.run()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        tl.teardown()
+        rclpy.shutdown()
+        pygame.quit()
+        sys.exit()
+
+if __name__ == '__main__':
+    main()

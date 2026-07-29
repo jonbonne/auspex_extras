@@ -1,0 +1,325 @@
+#!/usr/bin/env python3
+import os
+import sys
+import time
+import math
+import ctypes
+import struct
+import pygame
+import threading
+import numpy as np
+import traceback
+import tabulate
+
+import rclpy
+from rclpy.node import Node
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
+
+from auspex_interfaces.msg import AudioChunk, VideoChunk, InputChunk
+from auspex_interfaces.srv import SnesGraphics, SnesEmuState
+
+from auspex_emu.ppu import SnesRosPPU
+
+# joypad: xinput (x360) layout by default.
+#             BYet^v<>AXLR
+joymap_arg = '0267----1345'
+
+BUTTON_A = 1
+BUTTON_B = 0
+BUTTON_X = 3
+BUTTON_Y = 2
+BUTTON_L = 4
+BUTTON_R = 5
+BUTTON_SELECT = 6
+BUTTON_START = 7
+BUTTON_HOME = 8
+BUTTON_LSTICK = 9
+BUTTON_RSTICK = 10
+
+
+def convert_15bit_to_24bit(color):
+    # Extract 5-bit values for R, G, and B
+    r = (color >> 10) & 0x1F
+    g = (color >> 5) & 0x1F
+    b = color & 0x1F
+
+    # Scale 5-bit values to 8-bit values
+    r = (r << 3) | (r >> 2)  # Scale from 5 bits to 8 bits
+    g = (g << 3) | (g >> 2)  # Scale from 5 bits to 8 bits
+    b = (b << 3) | (b >> 2)  # Scale from 5 bits to 8 bits
+
+    return (r, g, b)
+
+
+class SnesRosPygame(Node):
+    """
+    Typical usage of the libsnes API looks like this:
+
+    1. Call snes_init() to initialize the library.
+    2. Tell libsnes which callback should be called for each event (see the
+       documentation on the individual callback types below.
+    3. Call one of the snes_load_cartridge_* functions to load cartridge data
+       into the emulated SNES.
+    4. If the physical cart had any non-volatile storage, there may be data from
+       a previous emulation run that needs to be loaded. Find the storage buffer
+       by calling the snes_get_memory_* functions and load any saved data into
+       it.
+    5. Call snes_set_controller_port_device() to connect appropriate controllers
+       to the emulated SNES.
+    6. Call snes_get_region() to determine the intended screen refresh rate for
+       this cartridge..
+    7. Call snes_run() to emulate a single frame. Before snes_run() returns, the
+       installed callbacks will be called - possibly multiple times.
+    8. When you're done, call snes_term() to free all memory allocated
+       associated with the emulated SNES.
+    """
+
+    def __init__(self):
+        super().__init__("snes_pygame")
+        self._pygame_clock = None
+        self._joymap = None
+
+        # video refresh
+        self._convsurf = None
+        self._screen = None
+        self._video_frameskip = 0
+        self._video_frameskip_idx = 0
+        self._width = 0
+        self._height = 0
+        self._scale = 2
+
+        # audio sample
+        self._audio_mutex = threading.Lock()
+        self._bytes_per_sample = 4 # 2 channels (stereo), 2bytes per channel (uint16)
+        self._audio_freq = 32000
+        self._num_channels = 4
+        self._soundbuf_size = 4096 * self._bytes_per_sample # in bytes
+        self._sound_channel = {}
+        self._channel_idx = 0
+
+        #input
+        self._joypad = {}
+        self._joypad_count = 0
+
+        # Emulator State
+        self._state_client = None
+
+        # GUI
+        self._ppu = SnesRosPPU(self, self._scale, self.scale_surface)
+
+        print("[SnesRosPygame] Allocated!")
+
+    def scale_surface(self, surface):
+        blit_surf = surface.copy()
+        new_size = (blit_surf.get_width()*self._scale, blit_surf.get_height()*self._scale)
+        return pygame.transform.scale(blit_surf, new_size)
+
+    def blit_screen(self):
+        self._screen.blit(self.scale_surface(self._convsurf), self._ppu.get_offset())
+        self._ppu.blit_gui(self._screen)
+        pygame.display.flip()
+
+    # callback functions...
+    def video_refresh(self, msg):
+        # 256 width
+        height = msg.height
+        width = msg.width
+        pitch = 4
+        if width == 512:
+            # 512 width
+            height = msg.height * 2
+            pitch = 1
+        #print(f"??? VIDEO REFRESH | p={pitch} | w={width} | h={height}")
+        #, data: ctypes.POINTER(ctypes.c_uint16), width: ctypes.c_uint, height: ctypes.c_uint
+        self._video_frameskip_idx += 1
+
+        # init pygame display here, once we know the width and height.
+        if self._screen is None or width != self._width or height != self._height:
+            screen_width = width * self._scale + self._ppu.gui_width()
+            screen_height = height * self._scale + self._ppu.gui_height()
+            self._screen = pygame.display.set_mode((screen_width, screen_height))
+
+        # make a surface with the SNES's pixel format, so pygame automatically converts
+        if self._convsurf is None or width != self._width or height != self._height:
+            self._convsurf = pygame.Surface(
+                (pitch * width, height), depth=15, masks=(0x7c00, 0x03e0, 0x001f, 0)
+            )
+            self._ppu.init_overlay(self._convsurf)
+
+        self._ppu.update_gui(pitch, width, height)
+
+        # cache current width/height
+        self._width = width
+        self._height = height
+
+        if self._video_frameskip_idx > self._video_frameskip:
+            self._video_frameskip_idx = 0
+
+            #print(f"{msg.data=} | {width=} | {height=}")
+            self._convsurf.get_buffer().write(ctypes.string_at(bytes(msg.data), pitch * width * height * 2), 0)
+            self.blit_screen()
+
+    def audio_sample(self, msg):
+        #print(f"??? AUDIO_SAMPLE")
+        #, left: ctypes.c_uint16, right: ctypes.c_uint16
+        try:
+            with self._audio_mutex:
+                # queue buffer
+                buf = np.frombuffer(bytes(msg.data), dtype='uint16', count=self._soundbuf_size // 2).reshape(-1, 2)
+                self._sound_channel[self._channel_idx].queue(pygame.sndarray.make_sound(buf))
+                self._channel_idx += 1
+                if self._channel_idx >= self._num_channels:
+                    self._channel_idx = 0
+
+        except Exception as err:
+            print(f"!!! {err}  | {traceback.format_exc()}")
+
+    def publish_input_state(self):
+        """Publish input state from pygame.joystick.
+
+        default SNES button id layout:
+        BYet^v<>AXLR
+        0267----1345
+        """
+        for j in range(self._joypad_count):
+            dpad = self._joypad[j].get_hat(0)
+            button_state = InputChunk()
+            # Check each button and set the corresponding bit if the button is pressed
+            if self._joypad[j].get_button(BUTTON_B):
+                button_state.buttons |= (1 << 0)  # Set bit 0
+            if self._joypad[j].get_button(BUTTON_Y):
+                button_state.buttons |= (1 << 1)  # Set bit 1
+            if self._joypad[j].get_button(BUTTON_SELECT):
+                button_state.buttons |= (1 << 2)  # Set bit 2
+            if self._joypad[j].get_button(BUTTON_START):
+                button_state.buttons |= (1 << 3)  # Set bit 3
+            if dpad[1] > 0:
+                button_state.buttons |= (1 << 4)  # Set bit 4
+            if dpad[1] < 0:
+                button_state.buttons |= (1 << 5)  # Set bit 5
+            if dpad[0] < 0:
+                button_state.buttons |= (1 << 6)  # Set bit 6
+            if dpad[0] > 0:
+                button_state.buttons |= (1 << 7)  # Set bit 7
+            if self._joypad[j].get_button(BUTTON_A):
+                button_state.buttons |= (1 << 8)  # Set bit 8
+            if self._joypad[j].get_button(BUTTON_X):
+                button_state.buttons |= (1 << 9)  # Set bit 9
+            if self._joypad[j].get_button(BUTTON_L):
+                button_state.buttons |= (1 << 10) # Set bit 10
+            if self._joypad[j].get_button(BUTTON_R):
+                button_state.buttons |= (1 << 11) # Set bit 11
+            if self._joypad[j].get_button(BUTTON_HOME) and not self._ppu.is_busy():
+                # make graphics call
+                self._ppu.process_ppu_snapshot()
+            if self._joypad[j].get_button(BUTTON_LSTICK):
+                # save state
+                req = SnesEmuState.Request()
+                req.command = SnesEmuState.Request.SAVE
+                req.index = 127 # last index
+                future = self._state_client.call_async(req)
+                future.add_done_callback(self.state_response)
+            if self._joypad[j].get_button(BUTTON_RSTICK):
+                # load state
+                req = SnesEmuState.Request()
+                req.command = SnesEmuState.Request.LOAD
+                req.index = 127 # last index
+                future = self._state_client.call_async(req)
+                future.add_done_callback(self.state_response)
+
+            button_state.port = j >0
+            button_state.header.frame_id = self.get_name()
+            button_state.header.stamp = self.get_clock().now().to_msg()
+            self._input_pub.publish(button_state)
+
+    def state_response(self, future):
+        try:
+            rep = future.result()
+            self.get_logger().info(f"{rep.message}");
+        except Exception as e:
+            self.get_logger().error(f"Error: {e}")
+
+    def initialize(self):
+
+        # map snes buttons to joybuttons
+        # we want a mapping of "joymap[x] = y", where:
+        #  x = the snes button id
+        #  y = the joypad button corresponding to x
+        self._joymap = [-1] * 12
+        for i in range(12):
+            button = joymap_arg[i]
+            if button in '0123456789':
+                self._joymap[i] = int(button)
+
+        # init pygame sound.  snes freq is 32000, 16bit unsigned stereo.
+        pygame.mixer.init(frequency=self._audio_freq, size=-16, channels=2, buffer=self._soundbuf_size // self._bytes_per_sample)
+        self._sound_channel = { ch: pygame.mixer.Channel(ch) for ch in range(self._num_channels) }
+        for ch in self._sound_channel:
+            self._sound_channel[ch].set_volume(0.5)
+
+        # init pygame joypad input
+        pygame.joystick.init()
+        self._joypad_count = pygame.joystick.get_count()
+        for j in range(self._joypad_count):
+            print(f"Initializing joypad [{j+1}].")
+            self._joypad[j] = pygame.joystick.Joystick(j)
+            self._joypad[j].init()
+        else:
+            print("No joysticks connected.")
+
+        pygame.init()
+
+        # pygame 'clock' used to limit to 60fps on fast computers
+        self._pygame_clock = pygame.time.Clock()
+
+        self._queue_size = 10
+        self._video_sub = self.create_subscription(VideoChunk, '/emulators/auspex_emu/video_stream', self.video_refresh, self._queue_size)
+        self._audio_sub = self.create_subscription(AudioChunk, '/emulators/auspex_emu/audio_stream', self.audio_sample, self._queue_size)
+        self._input_pub = self.create_publisher(InputChunk, '/emulators/auspex_emu/input_stream', self._queue_size)
+
+        self._state_client = self.create_client(SnesEmuState, "/emulators/auspex_emu/state")
+        if not self._state_client.wait_for_service(timeout_sec=5.0):
+            self.get_logger().info('Emulation instance not available to attach!')
+            return False
+
+        if not self._ppu.initialize():
+            self.get_logger().info('Failed to initialize PPU snapshot post-processor!')
+            return False
+
+        print("[SnesRosPygame] Initialized!")
+        return True
+
+    def teardown(self):
+        self.destroy_publisher(self._input_pub)
+        self.destroy_subscription(self._audio_sub)
+        self.destroy_subscription(self._video_sub)
+
+    def run(self):
+
+        # run each frame until closed.
+        running = True
+        state = ''
+        print("[SnesRosPygame] Starting Main Loop!")
+        while running:
+            self.publish_input_state()
+            self._pygame_clock.tick(60)
+            rclpy.spin_once(self, timeout_sec=0.01)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    break
+
+def main(args=None):
+    rclpy.init(args=args)
+    snes_pygame = SnesRosPygame()
+    if not snes_pygame.initialize():
+        print("Failed to initialize!")
+        sys.exit(1)
+
+    snes_pygame.run()
+    print("TearDown!")
+    snes_pygame.teardown()
+    rclpy.shutdown()
+
+if __name__ == "__main__":
+    main()

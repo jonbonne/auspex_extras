@@ -1,0 +1,3 @@
+alias build="colcon build --symlink-install"
+alias src="source /ros2_ws/install/setup.bash"
+alias runnode="ros2 run video_caption_package video_caption_node"

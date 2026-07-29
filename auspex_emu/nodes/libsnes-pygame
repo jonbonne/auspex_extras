@@ -1,0 +1,275 @@
+#!/usr/bin/env python3
+import os
+import sys
+import time
+import math
+import argparse
+import ctypes
+import struct
+import pygame
+import numpy as np
+import traceback
+
+# joypad: xinput (x360) layout by default.
+#             BYet^v<>AXLR
+joymap_arg = '0267----1345'
+
+snes_core = ctypes.CDLL('libsnes.so')
+# callback functions...
+
+class SnesPygame():
+    """
+    Typical usage of the libsnes API looks like this:
+
+    1. Call snes_init() to initialize the library.
+    2. Tell libsnes which callback should be called for each event (see the
+       documentation on the individual callback types below.
+    3. Call one of the snes_load_cartridge_* functions to load cartridge data
+       into the emulated SNES.
+    4. If the physical cart had any non-volatile storage, there may be data from
+       a previous emulation run that needs to be loaded. Find the storage buffer
+       by calling the snes_get_memory_* functions and load any saved data into
+       it.
+    5. Call snes_set_controller_port_device() to connect appropriate controllers
+       to the emulated SNES.
+    6. Call snes_get_region() to determine the intended screen refresh rate for
+       this cartridge..
+    7. Call snes_run() to emulate a single frame. Before snes_run() returns, the
+       installed callbacks will be called - possibly multiple times.
+    8. When you're done, call snes_term() to free all memory allocated
+       associated with the emulated SNES.
+    """
+
+    # callback function signatures
+    snes_video_refresh_t = ctypes.CFUNCTYPE(None, ctypes.POINTER(ctypes.c_uint16), ctypes.c_uint, ctypes.c_uint)
+    snes_audio_sample_t = ctypes.CFUNCTYPE(None, ctypes.c_uint16, ctypes.c_uint16)
+    snes_input_state_t = ctypes.CFUNCTYPE(ctypes.c_int16, ctypes.c_bool, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint)
+    snes_input_poll_t = ctypes.CFUNCTYPE(None)
+
+
+    def __init__(self, rom_file, sram_file=None):
+        self._rom_file = rom_file
+        self._rom = None
+        self._sram = None
+        self._clock = None
+        self._joymap = None
+        self._emu = None
+
+        # video refresh
+        self._video_refresh_cb = None
+        self._convsurf = None
+        self._screen = None
+        self._video_frameskip = 0
+        self._video_frameskip_idx = 0
+
+        # audio sample
+        self._audio_sample_cb = None
+        self._bytes_per_sample = 4 # 2 channels (stereo), 2bytes per channel (uint16)
+        self._audio_freq = 32000
+        self._num_channels = 4
+        self._soundbuf_size = 1024 * self._bytes_per_sample # in bytes
+        self._soundbuf_raw = b''
+        self._sound_channel = {}
+        self._channel_idx = 0
+
+        self._input_state_cb = None
+        self._input_poll_cb = None
+
+        # load game and init emulator
+        self._rom = open(rom_file, 'rb').read()
+        if sram_file:
+            self._sram = open(sram_file, 'rb').read()
+
+        #from snes import core as snes_core
+        self._emu = snes_core
+
+        print("[SnesPygame] Allocated!")
+
+
+    # callback functions...
+    def video_refresh(self, data: ctypes.POINTER(ctypes.c_uint16), width: ctypes.c_uint, height: ctypes.c_uint):
+        #print(f"??? VIDEO REFRESH")
+        self._video_frameskip_idx += 1
+
+        # init pygame display here, once we know the width and height.
+        if self._screen is None:
+            self._screen = pygame.display.set_mode((width, height))
+
+        # make a surface with the SNES's pixel format, so pygame automatically converts
+        pitch = 4 * width
+        if self._convsurf is None:
+            self._convsurf = pygame.Surface(
+                (pitch, height), depth=15, masks=(0x7c00, 0x03e0, 0x001f, 0)
+            )
+
+        if self._video_frameskip_idx > self._video_frameskip:
+            self._video_frameskip_idx = 0
+
+            #print(f"{data=} | {width=} | {height=}")
+            tmp = ctypes.string_at(data, pitch * height * 2)
+            self._convsurf.get_buffer().write(tmp, 0)
+            self._screen.blit(self._convsurf, (0,0))
+            pygame.display.flip()
+
+    def audio_sample(self, left: ctypes.c_uint16, right: ctypes.c_uint16):
+        #print(f"??? AUDIO_SAMPLE")
+        try:
+            self._soundbuf_raw += struct.pack('<HH', left, right) # +4bytes
+            if len(self._soundbuf_raw) >= self._soundbuf_size:
+                # queue buffer
+                buf = np.frombuffer(bytes(self._soundbuf_raw), dtype='uint16', count=self._soundbuf_size // 2).reshape(-1, 2)
+                self._soundbuf_raw = b''
+                self._sound_channel[self._channel_idx].queue(pygame.sndarray.make_sound(buf))
+                self._channel_idx += 1
+                if self._channel_idx >= self._num_channels:
+                    self._channel_idx = 0
+
+        except Exception as err:
+            print(f"!!! {err}  | {traceback.format_exc()}")
+
+    def input_state(self, port: ctypes.c_bool, device: ctypes.c_uint, index: ctypes.c_uint, id: ctypes.c_uint) -> ctypes.c_int16:
+        #print(f"??? INPUT STATE | {port=} | {device=} | {index=} | {id=}")
+        ret = False
+
+        # we're only interested in player 1
+        if not port and 0 <= id < 12:
+            # pov hat as fallback for d-pad (up, down, left, right)
+            #if   id == 4:  ret |= self._joypad.get_hat(0)[1] == 1
+            #elif id == 5:  ret |= self._joypad.get_hat(0)[1] == -1
+            #elif id == 6:  ret |= self._joypad.get_hat(0)[0] == -1
+            #elif id == 7:  ret |= self._joypad.get_hat(0)[0] == 1
+
+            tmp = self._joymap[id]
+            #print(f"{id}: {tmp}")
+            #if tmp >= 0:
+            #    ret |= self._joypad.get_button(tmp)
+
+        return ret & 0xFFFF
+
+    def input_poll(self):
+        pass
+
+    def get_abs_basename(self, file_path):
+        abs_path = os.path.abspath(file_path)
+        basename_without_ext = os.path.splitext(os.path.basename(abs_path))[0]
+        return os.path.join(os.path.dirname(abs_path), basename_without_ext)
+
+    def initialize(self):
+
+        if self._emu is None:
+            print("Emulator not allocated!")
+            return False
+
+        if self._rom is None:
+            print("Rom not loaded!")
+            return False
+
+        # map snes buttons to joybuttons
+        # we want a mapping of "joymap[x] = y", where:
+        #  x = the snes button id
+        #  y = the joypad button corresponding to x
+        self._joymap = [-1] * 12
+        for i in range(12):
+            button = joymap_arg[i]
+            if button in '0123456789':
+                self._joymap[i] = int(button)
+
+        # init pygame sound.  snes freq is 32000, 16bit unsigned stereo.
+        pygame.mixer.init(frequency=self._audio_freq, size=-16, channels=2, buffer=self._soundbuf_size // self._bytes_per_sample)
+        self._sound_channel = { ch: pygame.mixer.Channel(ch) for ch in range(self._num_channels) }
+        for ch in self._sound_channel:
+            self._sound_channel[ch].set_volume(0.5)
+
+        # init pygame joypad input
+        pygame.joystick.init()
+        joystick_count = pygame.joystick.get_count()
+        if joystick_count > 0:
+            self._joypad = pygame.joystick.Joystick(0)
+            self._joypad.init()
+        else:
+            print("No joysticks connected.")
+
+        pygame.init()
+
+        # pygame 'clock' used to limit to 60fps on fast computers
+        self._clock = pygame.time.Clock()
+
+        self._emu.snes_init()
+        self._emu.snes_load_cartridge_normal(None, self._rom, len(list(self._rom)))
+        base_name = self.get_abs_basename(self._rom_file)
+        print(f"{base_name=}")
+        self._emu.snes_set_cartridge_basename(base_name)
+
+        # register callbacks
+        self._video_refresh_cb = SnesPygame.snes_video_refresh_t(self.video_refresh)
+        self._audio_sample_cb = SnesPygame.snes_audio_sample_t(self.audio_sample)
+        self._input_state_cb = SnesPygame.snes_input_state_t(self.input_state)
+        self._input_poll_cb = SnesPygame.snes_input_poll_t(self.input_poll)
+
+        self._emu.snes_set_video_refresh(self._video_refresh_cb)
+        self._emu.snes_set_audio_sample(self._audio_sample_cb)
+        self._emu.snes_set_input_state(self._input_state_cb)
+        self._emu.snes_set_input_poll(self._input_poll_cb)
+
+        # unplug player 2 controller so we don't get twice as many input state callbacks
+        SNES_PORT_1 = 0
+        SNES_PORT_2 = 1
+        SNES_DEVICE_NONE = 0
+        SNES_DEVICE_JOYPAD = 1
+        SNES_DEVICE_MULTITAP = 2
+        SNES_DEVICE_MOUSE = 3
+        SNES_DEVICE_SUPER_SCOPE = 4
+        SNES_DEVICE_JUSTIFIER = 5
+        SNES_DEVICE_JUSTIFIERS = 6
+
+        self._emu.snes_set_controller_port_device(SNES_PORT_1, SNES_DEVICE_JOYPAD)
+        self._emu.snes_set_controller_port_device(SNES_PORT_2, SNES_DEVICE_NONE)
+
+        # all callbacks set, load the cartridge
+        if self._sram:
+            # TODO: load sram memory
+            pass
+
+        print("[SnesPygame] Initialized!")
+        return True
+
+    def run(self):
+
+        # run each frame until closed.
+        running = True
+        state = ''
+        print("[SnesPygame] Starting Main Loop!")
+        self._emu.snes_power()
+        while running:
+            self._emu.snes_run()
+            self._clock.tick(60)
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                    break
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_F2:
+                        state = self._emu.snes_serialize()
+                    elif event.key == pygame.K_F4 and len(state):
+                        self._emu.snes_unserialize(state)
+
+        self._emu.snes_term()
+
+
+def main():
+
+    parser = argparse.ArgumentParser(description="Pygame layer utilizing libsnes.so")
+    parser.add_argument('rom_file', type=str, help="Path to the ROM file")
+    parser.add_argument('--sram_file', type=str, default=None, help="Path to the SRAM file")
+
+    args = parser.parse_args()
+
+    snes_pygame = SnesPygame(args.rom_file, args.sram_file)
+    if not snes_pygame.initialize():
+        print("Failed to initialize!")
+        sys.exit(1)
+
+    snes_pygame.run()
+
+if __name__ == "__main__":
+    main()

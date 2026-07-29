@@ -1,0 +1,23 @@
+#!/opt/venv/bin/python
+import rclpy
+from rclpy.executors import MultiThreadedExecutor
+from video_captioner.video_streamer import VideoStreamer
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = VideoStreamer(
+        use_compression=True,
+        image_rate_hz=60.0,
+    )
+    executor = MultiThreadedExecutor(num_threads=2)
+    executor.add_node(node)
+    try:
+        executor.spin()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()

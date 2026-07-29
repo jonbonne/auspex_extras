@@ -1,0 +1,28 @@
+services:
+  snes_overlay:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - DISPLAY=${DISPLAY}
+      - XAUTHORITY=/root/.Xauthority
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - ROS_DOMAIN_ID=1
+    ipc: host
+    network_mode: host
+    shm_size: "1g"
+    volumes:
+      - /dev/shm:/dev/shm
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+      - ${HOME}/.Xauthority:/root/.Xauthority:ro
+      - /run/user/$(id -u)/pulse/native:/tmp/pulse.sock
+      - ${HOME}/.config/pulse/cookie:/root/.config/pulse/cookie
+    devices:
+      - "/dev/video1:/dev/video0"
+      - "/dev/snd:/dev/snd"
+    runtime: nvidia
+    group_add:
+      - video
+    privileged: true
+    entrypoint: /entrypoint.sh
+    command: ros2 run snes_overlay_streamer snes_overlay_streamer_node

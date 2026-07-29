@@ -1,0 +1,4 @@
+# Convenient shortcuts inside the container
+alias build="colcon build --symlink-install --packages-select snes_overlay_streamer"
+alias src="source /ros2_ws/install/setup.bash"
+alias runoverlay="ros2 run snes_overlay_streamer snes_overlay_streamer"

@@ -1,0 +1,33 @@
+version: '3.9'
+
+services:
+  video-caption-base:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    # if you later switch to a non-root user, make sure it’s in the 'video' group:
+    group_add:
+      - video
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    runtime: nvidia  # Enables NVIDIA Container Toolkit
+    privileged: true
+    #network_mode: host
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=0  # Or change to specific device index(es)
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - ROS_DOMAIN_ID=1
+    ipc: host
+    network_mode: host
+    shm_size: "1g"
+    volumes:
+      - /dev/shm:/dev/shm
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+      - ${HOME}/.Xauthority:/root/.Xauthority:ro
+      #- ./src:/ros2_ws/src
+    entrypoint: /entrypoint.sh

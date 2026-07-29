@@ -1,0 +1,8 @@
+[general]
+version = 1
+
+[[segment]]
+  # one mempool for ~16 KB payloads (+64 B header = 16 448 B chunks)
+  [[segment.mempool]]
+  size = 16448
+  count = 32768

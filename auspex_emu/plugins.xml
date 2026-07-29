@@ -1,0 +1,8 @@
+<library path="auspex_emu_plugins">
+  <class type="auspex::emu::SnesSDL" base_class_type="auspex::emu::AuspexEmulator">
+    <description> A plugin that emulates the SNES using SDL.</description>
+  </class>
+  <class type="auspex::emu::SnesROS" base_class_type="auspex::emu::AuspexEmulator">
+    <description>A plugin that emulates the SNES using ROS.</description>
+  </class>
+</library>
