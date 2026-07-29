@@ -1,0 +1,59 @@
+#!/usr/bin/python3
+
+# System Imports #
+import sys
+import pygame
+
+# ROS Imports #
+import rclpy
+from rclpy.executors import MultiThreadedExecutor
+
+# Project Imports #
+from auspex_reality.gui import ServoBotGui
+
+def main(args=None):
+
+    print("init rclpy")
+    rclpy.init(args=args)
+
+    # create Auspex node
+    # this is the interface to the player
+    # communicates with effector via game-events
+    gui = ServoBotGui('servobot_gui')
+    if not gui.initialize():
+        gui.get_logger().error("Auspex Failed!")
+        sys.exit(0)
+
+    gui.get_logger().info("Auspex Ready")
+
+    executor = MultiThreadedExecutor(num_threads=2)
+    executor.add_node(gui)
+
+    print("init pygame")
+    pygame.init()
+
+    running = True
+    print("-- enter main loop")
+    while rclpy.ok() and running:
+        pygame.time.delay(30)
+
+        events = pygame.event.get()
+        for event in events:
+            if event.type == pygame.QUIT:
+                running = False
+
+        # update the gui
+        gui.update(events)
+        executor.spin_once(timeout_sec=0.001)
+
+    print("-- exit main loop")
+
+    executor.remove_node(gui)
+    # shutdown gui node
+    gui.destroy_node()
+
+    pygame.quit()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()

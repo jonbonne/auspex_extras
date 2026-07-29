@@ -1,7 +1,0 @@
-# node name needs to match server name
-emulators/auspex_emu:
-   ros__parameters:
-       #rom_file : som/som.smc
-       rom_file : zelda/zelda.smc
-       emu_type : auspex::emu::SnesROS
-       rom_dir: /root/roms

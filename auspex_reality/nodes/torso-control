@@ -1,0 +1,55 @@
+#!/usr/bin/python3
+
+# System Imports #
+import sys
+import signal
+
+# ROS Imports #
+import rclpy
+
+# Project Imports #
+from auspex_reality.servo_bot import ServoBot
+
+running = True
+
+def handle_signal(signum, frame):
+    global running
+    if signum in (signal.SIGINT, signal.SIGTERM):
+        running = not running
+        print(f"Signal {signum} received. Flag is now: {running}")
+
+def main(args=None):
+    global running
+
+    # Register the signal handlers
+    signal.signal(signal.SIGINT, handle_signal)  # Handle Ctrl+C
+    signal.signal(signal.SIGTERM, handle_signal)  # Handle termination
+
+    print("init rclpy")
+    rclpy.init(args=args)
+
+    # create Auspex node
+    # this is the interface to the player
+    # communicates with effector via game-events
+    sb = ServoBot('torso')
+    if not sb.initialize():
+        sb.get_logger().error("Auspex Failed!")
+        sys.exit(0)
+
+    sb.get_logger().info("Auspex Ready")
+
+    print("-- enter main loop")
+    while rclpy.ok() and running:
+        # update the ServoBot
+        sb.update()
+
+    print("-- exit main loop")
+
+    # shutdown ServoBot node
+    sb.teardown()
+    sb.destroy_node()
+
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()

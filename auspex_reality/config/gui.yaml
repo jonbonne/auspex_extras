@@ -1,0 +1,17 @@
+gizmos:
+  servobot_gui:
+    ros__parameters:
+      rate: 30
+      cmd_topic: joint_cmd
+      size:
+        - 400
+        - 400
+      slider_height: 30
+      slider_width: 300
+      slider_spacing: 70
+      slider_names:
+        - joint1
+        - joint2
+        - joint3
+        - joint4
+        - joint5

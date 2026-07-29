@@ -1,0 +1,304 @@
+Panels:
+  - Class: rviz_common/Displays
+    Help Height: 70
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options1
+        - /RobotModel1
+      Splitter Ratio: 0.5
+    Tree Height: 828
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 1
+      Class: rviz_default_plugins/RobotModel
+      Collision Enabled: false
+      Description File: ""
+      Description Source: Topic
+      Description Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /robot_description
+      Enabled: true
+      Links:
+        All Links Enabled: true
+        Expand Joint Details: false
+        Expand Link Details: false
+        Expand Tree: false
+        Link Tree Style: Links in Alphabetic Order
+        base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        head:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        l_ankle_pitch_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        l_foot:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        l_forearm:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        l_hand:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        l_hip_yaw_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        l_lower_leg:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        l_shoulder_pitch_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        l_shoulder_yaw_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        l_upper_arm:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        l_upper_leg:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        neck_pitch_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        neck_yaw_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        r_ankle_pitch_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        r_foot:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        r_forearm:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        r_hand:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        r_hip_yaw_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        r_lower_leg:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        r_shoulder_pitch_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        r_shoulder_yaw_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        r_upper_arm:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        r_upper_leg:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        torso_pitch_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        torso_yaw_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+      Mass Properties:
+        Inertia: false
+        Mass: false
+      Name: RobotModel
+      TF Prefix: ""
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
+    - Class: rviz_default_plugins/TF
+      Enabled: true
+      Filter (blacklist): ""
+      Filter (whitelist): ""
+      Frame Timeout: 15
+      Frames:
+        All Enabled: true
+        base_link:
+          Value: true
+        head:
+          Value: true
+        l_ankle_pitch_link:
+          Value: true
+        l_foot:
+          Value: true
+        l_forearm:
+          Value: true
+        l_hand:
+          Value: true
+        l_hip_yaw_link:
+          Value: true
+        l_lower_leg:
+          Value: true
+        l_shoulder_pitch_link:
+          Value: true
+        l_shoulder_yaw_link:
+          Value: true
+        l_upper_arm:
+          Value: true
+        l_upper_leg:
+          Value: true
+        neck_pitch_link:
+          Value: true
+        neck_yaw_link:
+          Value: true
+        odom:
+          Value: true
+        r_ankle_pitch_link:
+          Value: true
+        r_foot:
+          Value: true
+        r_forearm:
+          Value: true
+        r_hand:
+          Value: true
+        r_hip_yaw_link:
+          Value: true
+        r_lower_leg:
+          Value: true
+        r_shoulder_pitch_link:
+          Value: true
+        r_shoulder_yaw_link:
+          Value: true
+        r_upper_arm:
+          Value: true
+        r_upper_leg:
+          Value: true
+        torso_pitch_link:
+          Value: true
+        torso_yaw_link:
+          Value: true
+      Marker Scale: 0.10000000149011612
+      Name: TF
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+      Tree:
+        odom:
+          base_link:
+            l_hip_yaw_link:
+              l_upper_leg:
+                l_lower_leg:
+                  l_ankle_pitch_link:
+                    l_foot:
+                      {}
+            r_hip_yaw_link:
+              r_upper_leg:
+                r_lower_leg:
+                  r_ankle_pitch_link:
+                    r_foot:
+                      {}
+            torso_yaw_link:
+              torso_pitch_link:
+                l_shoulder_yaw_link:
+                  l_shoulder_pitch_link:
+                    l_upper_arm:
+                      l_forearm:
+                        l_hand:
+                          {}
+                neck_yaw_link:
+                  neck_pitch_link:
+                    head:
+                      {}
+                r_shoulder_yaw_link:
+                  r_shoulder_pitch_link:
+                    r_upper_arm:
+                      r_forearm:
+                        r_hand:
+                          {}
+      Update Interval: 0
+      Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: odom
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+  Transformation:
+    Current:
+      Class: rviz_default_plugins/TF
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 0.9914872050285339
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.05999999865889549
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
+      Focal Point:
+        X: 0.191197469830513
+        Y: -0.21467532217502594
+        Z: 0.054357826709747314
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.05000000074505806
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.009999999776482582
+      Pitch: 0.7103986740112305
+      Target Frame: <Fixed Frame>
+      Value: Orbit (rviz_default_plugins)
+      Yaw: 3.6754274368286133
+    Saved: ~
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 1043
+  Hide Left Dock: false
+  Hide Right Dock: false
+  QMainWindow State: 000000ff00000000fd000000010000000000000235000003bdfc0200000001fb000000100044006900730070006c006100790073010000003b000003bd000000c700ffffff00000545000003bd00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Width: 1920
+  X: 1920
+  Y: 0

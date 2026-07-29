@@ -1,0 +1,24 @@
+#!/usr/bin/python3
+
+from auspex_reality.spice import BotSpice
+
+def main():
+    bs = BotSpice("circuit_config.yaml")
+    circuit = bs.build_circuit()
+    analysis = bs.simulate_circuit(circuit)
+
+    # Export and plot data
+    results = bs.export_data(analysis)
+
+    for key, values in results.items():
+        plt.plot(analysis.time, values, label=key)
+
+    plt.xlabel('Time (s)')
+    plt.ylabel('Voltage (V)')
+    plt.legend()
+    plt.title("Circuit Simulation Results")
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()

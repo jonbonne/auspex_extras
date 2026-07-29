@@ -1,0 +1,377 @@
+<robot name="mini_humanoid" xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <material name="gray">
+    <color rgba="0.5 0.5 0.5 1.0"/>
+  </material>
+  <material name="blue_dark">
+    <color rgba="0.2 0.3 0.7 1.0"/>
+  </material>
+  <material name="blue">
+    <color rgba="0.3 0.4 0.9 1.0"/>
+  </material>
+  <material name="yellow">
+    <color rgba="0.9 0.8 0.1 1.0"/>
+  </material>
+  <xacro:property name="torso_x" value="0.10" />
+  <xacro:property name="torso_y" value="0.08" />
+  <xacro:property name="torso_z_lower" value="0.08" /> 
+  <xacro:property name="torso_z_upper" value="0.10" /> 
+  <xacro:property name="head_x" value="0.14" />
+  <xacro:property name="head_y" value="0.10" />
+  <xacro:property name="head_z" value="0.10" />
+  <xacro:property name="neck_joint_offset_z" value="0.02" />
+
+  <xacro:property name="shoulder_radius" 
+ value="0.04" />
+  <xacro:property name="upper_arm_len" value="0.08" />
+  <xacro:property name="forearm_len" value="0.08" />
+  <xacro:property name="hand_x" value="0.06" />
+  <xacro:property name="hand_y" value="0.06" />
+  <xacro:property name="hand_z" value="0.03" />
+
+  <xacro:property name="hip_width_offset" value="0.01" />
+  <xacro:property name="upper_leg_len" value="0.12" />
+  <xacro:property name="lower_leg_len" value="0.12" />
+  <xacro:property name="foot_x" value="0.08" />
+  <xacro:property name="foot_y" value="0.06" />
+  <xacro:property name="foot_z" value="0.03" />
+  <xacro:property name="limb_a_thickness" value="0.015" /> 
+  <xacro:property name="limb_b_thickness" value="0.03" /> 
+  <xacro:property name="limb_c_thickness" value="0.02" /> 
+  <xacro:property name="limb_d_thickness" value="0.04" /> 
+
+  <xacro:macro name="dummy_inertia" params="mass">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="${mass}"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+  </xacro:macro>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="${torso_x} ${torso_y} ${torso_z_lower}"/>
+      </geometry>
+      <material name="blue_dark"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="${torso_x} ${torso_y} ${torso_z_lower}"/>
+      </geometry>
+  
+    </collision>
+    <xacro:dummy_inertia mass="0.8" />
+  </link>
+
+  <joint name="torso_yaw_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="torso_yaw_link"/>
+    <origin xyz="0 0 ${torso_z_lower/2}" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-0.78" upper="0.78" velocity="1.0" effort="20"/>
+  </joint>
+  <link name="torso_yaw_link">
+    <xacro:dummy_inertia mass="0.01" />
+  </link>
+
+  <joint name="torso_pitch_joint" type="revolute">
+    <parent link="torso_yaw_link"/>
+    <child link="torso_pitch_link"/>
+    <origin xyz="0 0 0.02" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.52" upper="0.52" 
+ velocity="1.0" effort="20"/>
+  </joint>
+
+  <link name="torso_pitch_link">
+    <visual>
+      <origin xyz="0 0 ${torso_z_upper/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${torso_x+0.02} ${torso_y+0.02} ${torso_z_upper}"/> 
+      </geometry>
+      <material name="blue"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${torso_z_upper/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${torso_x+0.02} ${torso_y+0.02} ${torso_z_upper}"/>
+      </geometry>
+    
+ </collision>
+    <xacro:dummy_inertia mass="0.5" />
+  </link>
+
+  <joint name="neck_yaw_joint" type="revolute">
+    <parent link="torso_pitch_link"/>
+    <child link="neck_yaw_link"/>
+    <origin xyz="0 0 ${torso_z_upper + neck_joint_offset_z}" rpy="0 0 0"/> 
+    <axis xyz="0 0 1"/>
+    <limit lower="-1.57" upper="1.57" velocity="1.0" effort="10"/>
+  </joint>
+  <link name="neck_yaw_link">
+    <xacro:dummy_inertia mass="0.01" />
+  </link>
+
+  <joint name="neck_pitch_joint" type="revolute">
+    <parent link="neck_yaw_link"/>
+    <child link="neck_pitch_link"/>
+    <origin xyz="0 0 0.01" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.78" 
+ upper="0.78" velocity="1.0" effort="10"/>
+  </joint>
+  <link name="neck_pitch_link">
+    <xacro:dummy_inertia mass="0.01" />
+  </link>
+
+  <joint name="neck_roll_joint" type="revolute">
+    <parent link="neck_pitch_link"/>
+    <child link="head"/>
+    <origin xyz="0 0 0.01" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.78" upper="0.78" velocity="1.0" effort="10"/>
+  </joint>
+  
+  <link name="head">
+    <visual>
+      <origin xyz="0 0 ${head_z/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${head_x} ${head_y} ${head_z}"/>
+      </geometry>
+      <material name="yellow"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${head_z/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${head_x} ${head_y} ${head_z}"/>
+      </geometry>
+    </collision>
+    <xacro:dummy_inertia mass="0.1" />
+  </link>
+
+  <xacro:macro name="arm" params="prefix side_y">
+  
+    <joint name="${prefix}_shoulder_yaw_joint" type="revolute">
+      <parent link="torso_pitch_link"/>
+      <child link="${prefix}_shoulder_yaw_link"/>
+      <origin xyz="0 ${side_y*(torso_y/2 + shoulder_radius/2 
+ - 0.01)} ${torso_z_upper * 0.7}" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+      <limit lower="-1.57" upper="1.57" velocity="1.0" effort="10"/>
+    </joint>
+    <link name="${prefix}_shoulder_yaw_link">
+      <xacro:dummy_inertia mass="0.01" />
+    </link>
+
+    <joint name="${prefix}_shoulder_pitch_joint" type="revolute">
+      <parent link="${prefix}_shoulder_yaw_link"/>
+      <child link="${prefix}_shoulder_pitch_link"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <axis xyz="1 0 0"/>
+      <limit lower="-1.57" upper="1.57" velocity="1.0" effort="10"/>
+  
+    </joint>
+    <link name="${prefix}_shoulder_pitch_link">
+      <xacro:dummy_inertia mass="0.01" />
+    </link>
+
+    <joint name="${prefix}_shoulder_roll_joint" type="revolute">
+      <parent link="${prefix}_shoulder_pitch_link"/>
+      <child link="${prefix}_upper_arm"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <axis xyz="0 0 1"/>
+      <limit lower="-1.57" upper="1.57" velocity="1.0" effort="10"/>
+    </joint>
+
+    <link name="${prefix}_upper_arm">
+      <visual>
+        <origin xyz="0 0 -${upper_arm_len/2}" rpy="0 0 0"/>
+ 
+        <geometry>
+          <cylinder radius="${limb_a_thickness}" length="${upper_arm_len}"/>
+        </geometry>
+        <material name="blue_dark"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 -${upper_arm_len/2}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${limb_a_thickness}" length="${upper_arm_len}"/>
+        </geometry>
+      </collision>
+    
+    <xacro:dummy_inertia mass="0.1" />
+    </link>
+
+    <joint name="${prefix}_elbow_joint" type="revolute">
+      <parent link="${prefix}_upper_arm"/>
+      <child link="${prefix}_forearm"/>
+      <origin xyz="0 0 -${upper_arm_len}" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+      <limit lower="0" upper="2.35" velocity="1.0" effort="10"/>
+    </joint>
+
+    <link name="${prefix}_forearm">
+      <visual>
+        <origin xyz="0 0 -${forearm_len/2}" rpy="0 0 0"/>
+        <geometry>
+    
+          <cylinder radius="${limb_b_thickness}" length="${forearm_len}"/>
+        </geometry>
+        <material name="blue"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 -${forearm_len/2}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${limb_b_thickness}" length="${forearm_len}"/>
+        </geometry>
+      </collision>
+      <xacro:dummy_inertia mass="0.1" />
+    </link>
+
+   
+  <joint name="${prefix}_wrist_roll_joint" type="revolute">
+      <parent link="${prefix}_forearm"/>
+      <child link="${prefix}_hand"/>
+      <origin xyz="0 0 -${forearm_len}" rpy="0 0 0"/>
+      <axis xyz="0 0 1"/>
+      <limit lower="-1.57" upper="1.57" velocity="1.0" effort="10"/>
+    </joint>
+
+    <link name="${prefix}_hand">
+      <visual>
+        <origin xyz="0 0 -${hand_z/2}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${hand_x} ${hand_y} ${hand_z}"/>
+  
+        </geometry>
+        <material name="yellow"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 -${hand_z/2}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${hand_x} ${hand_y} ${hand_z}"/>
+        </geometry>
+      </collision>
+      <xacro:dummy_inertia mass="0.05" />
+    </link>
+  </xacro:macro>
+
+  <xacro:arm prefix="r" side_y="-1" />
+  <xacro:arm prefix="l" side_y="1" 
+ />
+
+  <xacro:macro name="leg" params="prefix side_y">
+  
+    <joint name="${prefix}_hip_yaw_joint" type="revolute">
+      <parent link="base_link"/>
+      <child link="${prefix}_hip_yaw_link"/>
+      <origin xyz="0 ${side_y*(torso_y/2 + hip_width_offset)} -${torso_z_lower/2}" rpy="0 0 0"/>
+      <axis xyz="0 0 1"/>
+      <limit lower="-0.78" upper="0.78" velocity="1.0" effort="10"/>
+    </joint>
+    <link name="${prefix}_hip_yaw_link">
+      <xacro:dummy_inertia mass="0.01" />
+    </link>
+
+    <joint name="${prefix}_hip_pitch_joint" type="revolute">
+      <parent link="${prefix}_hip_yaw_link"/>
+      
+      <child link="${prefix}_upper_leg"/>
+      <origin xyz="0 0 -0.02" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+      <limit lower="-1.57" upper="1.57" velocity="1.0" effort="10"/>
+    </joint>
+
+    <link name="${prefix}_upper_leg">
+      <visual>
+        <origin xyz="0 0 -${upper_leg_len/2}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${limb_c_thickness+0.01}" length="${upper_leg_len}"/>
+        </geometry>
+        <material name="blue"/>
+  
+      </visual>
+      <collision>
+        <origin xyz="0 0 -${upper_leg_len/2}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${limb_c_thickness+0.01}" length="${upper_leg_len}"/>
+        </geometry>
+      </collision>
+      <xacro:dummy_inertia mass="0.2" />
+    </link>
+
+    <joint name="${prefix}_knee_joint" type="revolute">
+      <parent link="${prefix}_upper_leg"/>
+      <child link="${prefix}_lower_leg"/>
+      <origin xyz="0 0 -${upper_leg_len}" 
+ rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+      <limit lower="-2.35" upper="0" velocity="1.0" effort="10"/>
+    </joint>
+
+    <link name="${prefix}_lower_leg">
+      <visual>
+        <origin xyz="0 0 -${lower_leg_len/2}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${limb_d_thickness+0.01}" length="${lower_leg_len}"/>
+        </geometry>
+        <material name="blue_dark"/>
+      </visual>
+     
+    <collision>
+        <origin xyz="0 0 -${lower_leg_len/2}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${limb_d_thickness+0.01}" length="${lower_leg_len}"/>
+        </geometry>
+      </collision>
+      <xacro:dummy_inertia mass="0.2" />
+    </link>
+
+    <joint name="${prefix}_ankle_pitch_joint" type="revolute">
+      <parent link="${prefix}_lower_leg"/>
+      <child link="${prefix}_ankle_pitch_link"/>
+      <origin xyz="0 0 -${lower_leg_len}" rpy="0 0 0"/>
+      
+      <axis xyz="0 1 0"/>
+      <limit lower="-0.78" upper="0.78" velocity="1.0" effort="10"/>
+    </joint>
+    <link name="${prefix}_ankle_pitch_link">
+      <xacro:dummy_inertia mass="0.01" />
+    </link>
+
+    <joint name="${prefix}_ankle_roll_joint" type="revolute">
+      <parent link="${prefix}_ankle_pitch_link"/>
+      <child link="${prefix}_foot"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <axis xyz="1 0 0"/>
+      <limit lower="-0.78" upper="0.78" velocity="1.0" effort="10"/>
+    </joint>
+
+    <link name="${prefix}_foot">
+      
+      <visual>
+        <origin xyz="-${foot_x/4} 0 -${foot_z/2}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${foot_x} ${foot_y} ${foot_z}"/>
+        </geometry>
+        <material name="blue_dark"/>
+      </visual>
+      <collision>
+        <origin xyz="${foot_x/4} 0 -${foot_z/2}" rpy="0 0 0"/>
+        <geometry>
+          <box size="${foot_x} ${foot_y} ${foot_z}"/>
+ 
+        </geometry>
+      </collision>
+      <xacro:dummy_inertia mass="0.1" />
+    </link>
+
+  </xacro:macro>
+
+  <xacro:leg prefix="r" side_y="-1" />
+  <xacro:leg prefix="l" side_y="1" />
+
+</robot>

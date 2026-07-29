@@ -1,0 +1,33 @@
+inputs:
+  - type: sine
+    amplitude: 5
+    frequency: 50
+    offset: 0
+  - type: square
+    amplitude: 3
+    frequency: 100
+  - type: triangle
+    amplitude: 4
+    frequency: 10
+
+network:
+  - type: resistor
+    node_a: input_1
+    node_b: node_1
+    value: 1k
+  - type: capacitor
+    node_a: node_1
+    node_b: node_2
+    value: 10u
+  - type: inductor
+    node_a: node_2
+    node_b: node_3
+    value: 1m
+  - type: diode
+    node_a: node_3
+    node_b: output_1
+
+outputs: 12
+
+simulation:
+  end_time: 100

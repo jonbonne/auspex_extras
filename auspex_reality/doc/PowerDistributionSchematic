@@ -1,0 +1,113 @@
+Mini Humanoid Power Distribution (25-DoF)
+
+Goal: Provide regulated power to 25 Actuators (High-Voltage) and 1 Main Control Board (Low-Voltage) efficiently.
+
+I. Power Source
+
+Component
+
+Specification
+
+Function
+
+Main Battery
+
+3S LiPo (11.1V Nominal, 12.6V Max)
+
+Primary power for the entire robot. Chosen for high energy density.
+
+Voltage Range
+
+9.0V (Min) - 12.6V (Max)
+
+Defines the input range for all regulation stages.
+
+II. Power Distribution Board (PDB) - Central Node
+
+The PDB takes the main battery input and splits it into two primary rails:
+
+A. High-Voltage (HV) Actuator Rail
+
+Component
+
+Specification
+
+Function
+
+Output Voltage
+
+9.0V - 12.6V (Unregulated Battery Voltage)
+
+This rail directly powers all 25 actuators. It avoids the inefficiency and heat of regulating a high-current load.
+
+Protection
+
+Polyswitch Fuses (e.g., 5A per limb bus)
+
+Protects against short circuits in the servo lines.
+
+Distribution
+
+Connects to 5 separate Bus lines (Neck, R. Arm, L. Arm, R. Leg, L. Leg)
+
+Simplifies wiring and localizes overcurrent issues.
+
+B. Low-Voltage (LV) Logic Rail
+
+Component
+
+Specification
+
+Function
+
+Regulator
+
+Buck Regulator (DC-DC Converter)
+
+High efficiency for stepping down the battery voltage (12V) to 5V. Linear regulators would dissipate too much heat.
+
+Output Voltage
+
+5.0V (± 0.2V)
+
+Standard operating voltage for the ESP12F microcontroller, sensors, and any low-power peripherals.
+
+Output Current
+
+~2A capacity (Must handle ESP + peripherals)
+
+Ensures stable power for the control system during peak operation.
+
+III. System Loads
+
+Subsystem
+
+Components
+
+Voltage Rail
+
+Current Estimate (Peak)
+
+Actuators
+
+25 Servos/Motors (e.g., Dynamixel XL-320 or similar)
+
+HV (9-12.6V)
+
+5A - 10A Total (depending on motor size/stall current)
+
+Main Controller
+
+ESP12F (in main.py context)
+
+LV (5V)
+
+0.5A (Typical)
+
+Sensors
+
+IMU, Camera, Encoders
+
+LV (5V) / LV (3.3V via on-board LDO)
+
+< 0.2A

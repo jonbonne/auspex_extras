@@ -1,0 +1,29 @@
+services:
+  servo-controller:
+    container_name: servo-controller
+    image: arm64/auspex:rolling
+    devices:
+      - /dev/i2c-1:/dev/i2c-1 # Map I2C device from host to container
+      - /dev/gpiomem:/dev/gpiomem # Map I2C device from host to container
+    restart: unless-stopped
+    cap_add:
+     - SYS_ADMIN
+     - SYS_RESOURCE
+     - SYS_RAWIO
+     - SYS_NICE
+     - SYS_TIME
+    network_mode: host
+    environment:
+      - DISPLAY=${DISPLAY}
+      - TERM=xterm-256color
+      - ENABLE_I2C=true
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+    volumes:
+      - /dev:/dev:rw
+      - /sys/class/gpio:/sys/class/gpio  # Required for GPIO control
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /run/dbus:/run/dbus:rw
+      - ~/.Xauthority:/home/root/.XAuthority:rw
+      - $HOME/auspex_ws:/root/auspex_ws
+    privileged: true # Required for accessing GPIO and I2C

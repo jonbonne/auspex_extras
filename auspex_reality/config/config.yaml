@@ -1,0 +1,23 @@
+gizmos:
+  torso:
+    ros__parameters:
+      cmd_topic: joint_cmd
+      num_servos: 5
+      servo_channels:
+        - joint1
+        - joint2
+        - joint3
+        - joint4
+        - joint5
+      servo_mins:
+        - 0
+        - 0
+        - 0
+        - 0
+        - 20
+      servo_maxs:
+        - 180
+        - 180
+        - 180
+        - 180
+        - 90
